@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase';
+import { getFriendlyErrorMessage, isOffline } from '@/lib/friendly-error';
 import {
   Mail,
   Lock,
@@ -45,6 +46,13 @@ export default function AuthPage() {
       return;
     }
 
+    if (isOffline()) {
+      setError(
+        'You appear to be offline. Please check your internet connection and try again.'
+      );
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -64,8 +72,8 @@ export default function AuthPage() {
         setIsLogin(true);
         setPassword('');
       }
-    } catch (err: any) {
-      setError(err.message || 'Something went wrong. Please try again.');
+    } catch (err: unknown) {
+      setError(getFriendlyErrorMessage(err));
     } finally {
       setLoading(false);
     }
