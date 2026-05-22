@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { requireUser } from '@/lib/require-user';
 
 type Message = { role: 'user' | 'assistant'; content: string };
 
@@ -15,12 +10,12 @@ const WELCOME_MESSAGE: Message = {
 };
 
 function normalizeMessages(input: unknown): Message[] {
-  const coerceRole = (role: any): 'user' | 'assistant' => {
+  const coerceRole = (role: unknown): 'user' | 'assistant' => {
     if (role === 'user' || role === 'assistant') return role;
     return 'user';
   };
 
-  const coerceContent = (content: any): string => {
+  const coerceContent = (content: unknown): string => {
     if (typeof content === 'string') return content;
     if (content == null) return '';
     return String(content);
@@ -28,7 +23,6 @@ function normalizeMessages(input: unknown): Message[] {
 
   if (input == null) return [WELCOME_MESSAGE];
 
-  // If client sent JSON-stringified messages, parse them.
   if (typeof input === 'string') {
     try {
       const parsed = JSON.parse(input);
@@ -41,13 +35,10 @@ function normalizeMessages(input: unknown): Message[] {
 
   if (Array.isArray(input)) {
     const normalized = input
-      .map((m: any) => {
+      .map((m: { role?: unknown; content?: unknown }) => {
         const role = coerceRole(m?.role);
         const content = coerceContent(m?.content);
-
-        // Drop empty messages created by bad serialization
         if (!content.trim()) return null;
-
         return { role, content } as Message;
       })
       .filter(Boolean) as Message[];
@@ -59,10 +50,29 @@ function normalizeMessages(input: unknown): Message[] {
   return [WELCOME_MESSAGE];
 }
 
-export async function GET() {
+function sessionMatchesQuery(
+  session: { title?: string | null; messages?: unknown },
+  q: string
+): boolean {
+  if (session.title?.toLowerCase().includes(q)) return true;
+  const msgs = Array.isArray(session.messages) ? session.messages : [];
+  return msgs.some(
+    (m: { content?: string }) =>
+      typeof m?.content === 'string' && m.content.toLowerCase().includes(q)
+  );
+}
+
+export async function GET(req: NextRequest) {
+  const auth = await requireUser();
+  if ('response' in auth) return auth.response;
+
+  const { supabase, user } = auth;
+  const q = req.nextUrl.searchParams.get('q')?.trim().toLowerCase() ?? '';
+
   const { data, error } = await supabase
     .from('chat_sessions')
-    .select('id, title, created_at')
+    .select('id, title, created_at, messages')
+    .eq('user_id', user.id)
     .order('updated_at', { ascending: false });
 
   if (error) {
@@ -70,23 +80,28 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ sessions: data });
+  let sessions = data ?? [];
+  if (q) {
+    sessions = sessions.filter((s) => sessionMatchesQuery(s, q));
+  }
+
+  const list = sessions.map(({ id, title, created_at }) => ({ id, title, created_at }));
+  return NextResponse.json({ sessions: list });
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if ('response' in auth) return auth.response;
+
+  const { supabase, user } = auth;
+
   try {
     const { title, messages } = await req.json();
-    console.log('Saving session with title:', title);
-    console.log('POST incoming messages type:', typeof messages);
-
     const normalizedMessages = normalizeMessages(messages);
-
-    console.log('POST normalized messages length:', normalizedMessages.length);
-    console.log('POST normalized messages sample:', normalizedMessages[0]);
 
     const { data, error } = await supabase
       .from('chat_sessions')
-      .insert({ title, messages: normalizedMessages })
+      .insert({ title, messages: normalizedMessages, user_id: user.id })
       .select()
       .single();
 
@@ -95,7 +110,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    console.log('Session saved successfully:', data.id);
     return NextResponse.json({ session: data });
   } catch (err) {
     console.error('Unexpected POST error:', err);
@@ -104,24 +118,43 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const auth = await requireUser();
+  if ('response' in auth) return auth.response;
+
+  const { supabase, user } = auth;
+
   try {
     const { id, messages, title } = await req.json();
-    console.log('Updating session id:', id);
-    console.log('PATCH incoming messages type:', typeof messages);
 
-    const normalizedMessages = normalizeMessages(messages);
+    if (!id) {
+      return NextResponse.json({ error: 'Session id required' }, { status: 400 });
+    }
 
-    console.log('PATCH normalized messages length:', normalizedMessages.length);
-    console.log('PATCH normalized messages sample:', normalizedMessages[0]);
+    const updates: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (title !== undefined) {
+      const trimmed = String(title).trim();
+      if (!trimmed) {
+        return NextResponse.json({ error: 'Title cannot be empty' }, { status: 400 });
+      }
+      updates.title = trimmed.slice(0, 120);
+    }
+
+    if (messages !== undefined) {
+      updates.messages = normalizeMessages(messages);
+    }
+
+    if (updates.title === undefined && updates.messages === undefined) {
+      return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
+    }
 
     const { data, error } = await supabase
       .from('chat_sessions')
-      .update({
-        messages: normalizedMessages,
-        title,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updates)
       .eq('id', id)
+      .eq('user_id', user.id)
       .select()
       .single();
 
