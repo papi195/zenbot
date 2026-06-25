@@ -96,16 +96,16 @@ export default function AuthPage() {
       {/* ── LEFT PANEL ── */}
       <div
         style={{
-          flex: '0 0 45%',
           background: 'linear-gradient(160deg, #1b4332 0%, #2d6a4f 50%, #40916c 100%)',
-          display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
           padding: '48px',
           position: 'relative',
           overflow: 'hidden',
+          // Important: don’t reserve desktop space on mobile.
+          flex: '0 0 45%',
         }}
-        className="hidden md:flex"
+        className="auth-left-panel"
       >
         {/* Subtle ambient shapes */}
         <div
@@ -256,9 +256,8 @@ export default function AuthPage() {
         <div style={{ width: '100%', maxWidth: '400px' }}>
           {/* Mobile-only brand */}
           <div
-            className="md:hidden"
+            className="auth-mobile-brand"
             style={{
-              display: 'flex',
               alignItems: 'center',
               gap: '10px',
               marginBottom: '32px',
@@ -681,10 +680,24 @@ export default function AuthPage() {
         </div>
       </div>
 
-      {/* Spinner keyframes */}
+      {/* CSS Styles */}
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        .auth-left-panel {
+          display: flex !important;
+        }
+        .auth-mobile-brand {
+          display: none !important;
+        }
+        @media (max-width: 768px) {
+          .auth-left-panel {
+            display: none !important;
+          }
+          .auth-mobile-brand {
+            display: flex !important;
+          }
         }
       `}</style>
     </div>
