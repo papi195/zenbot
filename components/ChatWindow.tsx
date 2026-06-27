@@ -280,7 +280,7 @@ export default function ChatWindow() {
     <div
       style={{
         display: 'flex',
-        height: '100vh',
+        height: '100dvh',
         background: '#f0f7f4',
         fontFamily: 'system-ui, sans-serif',
         position: 'relative',
@@ -297,7 +297,7 @@ export default function ChatWindow() {
       <div
         style={{
           position: 'fixed',
-          left: sidebarOpen ? 0 : '-260px',
+          left: sidebarOpen ? 0 : '-220px',
           top: 0,
           bottom: 0,
           zIndex: 20,

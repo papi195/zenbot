@@ -112,7 +112,7 @@ export default function Sidebar({
         padding: '16px',
         gap: '12px',
         flexShrink: 0,
-        height: '100vh',
+        height: '100%',
         overflow: 'hidden',
       }}
     >
