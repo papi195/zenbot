@@ -17,6 +17,7 @@ export default function LogoutPage() {
     const performSignOut = async () => {
       try {
         await supabase.auth.signOut();
+        router.refresh();
       } catch (err) {
         console.error('Error signing out from Supabase:', err);
       }
@@ -268,7 +269,7 @@ export default function LogoutPage() {
                 width: '100%',
               }}
             >
-              <Link
+              <a
                 href="/auth"
                 style={{
                   display: 'flex',
@@ -297,9 +298,9 @@ export default function LogoutPage() {
               >
                 <LogIn style={{ width: '16px', height: '16px' }} />
                 Sign Back In
-              </Link>
+              </a>
 
-              <Link
+              <a
                 href="/"
                 style={{
                   display: 'flex',
@@ -327,7 +328,7 @@ export default function LogoutPage() {
               >
                 <Home style={{ width: '16px', height: '16px' }} />
                 Return to Home
-              </Link>
+              </a>
             </div>
           </div>
         )}
